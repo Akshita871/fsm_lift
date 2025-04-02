@@ -1,0 +1,133 @@
+
+module lift_fsm (
+input clk,
+input reset,
+
+// Inputs
+input [11:0] floor_call_buttons,
+input door_open_sensor,
+input door_close_sensor,
+input [3:0]elevator_position_sensor,
+input passenger_weight_sensor,
+input fire_alarm_sensor,
+input power_outage_sensor,
+input disability_sensor,
+
+// Outputs
+output elevator_motor_control,
+output door_open_control,
+output door_close_control,
+output [11:0] floor_display,
+output alarm_signal,
+output emergency_mode_signal
+);
+
+reg [3:0] current_state;
+reg [3:0] next_state;
+
+// State definitions
+parameter IDLE = 4'b0000;
+parameter MOVING_UP = 4'b0001;
+parameter MOVING_DOWN = 4'b0010;
+parameter DOOR_OPENING = 4'b0011;
+parameter DOOR_CLOSING = 4'b0100;
+parameter PASSENGER_ENTERING = 4'b0101;
+parameter PASSENGER_EXITING = 4'b0110;
+parameter EMERGENCY_MODE = 4'b0111;
+parameter DISABILITY_MODE=4'b1000;
+
+// State transition logic
+always @(posedge clk or posedge reset) begin
+if (reset) begin
+current_state <= IDLE;
+end else begin
+current_state <= next_state;
+end
+end
+
+always @(*) begin
+case (current_state)
+IDLE: begin
+if (floor_call_buttons != 0) begin
+next_state <= MOVING_UP;
+end else if (door_open_sensor) begin
+next_state <= DOOR_OPENING;
+end else begin
+next_state <= IDLE;
+end
+end
+
+MOVING_UP: begin
+    if (elevator_position_sensor == 11) begin
+      next_state <= DOOR_OPENING;
+    end else begin
+      next_state <= MOVING_UP;
+    end
+  end
+
+  MOVING_DOWN: begin
+    if (elevator_position_sensor == 0) begin
+      next_state <= DOOR_OPENING;
+    end else begin
+      next_state <= MOVING_DOWN;
+    end
+  end
+
+  DOOR_OPENING: begin
+    if (door_open_sensor) begin
+      next_state <= PASSENGER_ENTERING;
+    end else begin
+      next_state <= DOOR_OPENING;
+    end
+  end
+
+  DOOR_CLOSING: begin
+    if (door_close_sensor) begin
+      next_state <= IDLE;
+    end else begin
+      next_state <= DOOR_CLOSING;
+    end
+  end
+
+  PASSENGER_ENTERING: begin
+    if (passenger_weight_sensor) begin
+      next_state <= DOOR_CLOSING;
+    end else begin
+      next_state <= PASSENGER_ENTERING;
+    end
+  end
+
+  PASSENGER_EXITING: begin
+    if (passenger_weight_sensor == 0) begin
+      next_state <= DOOR_CLOSING;
+    end else begin
+      next_state <= PASSENGER_EXITING;
+    end
+  end
+
+  EMERGENCY_MODE: begin
+    // TODO: Implement emergency mode logic
+    next_state <= EMERGENCY_MODE;
+  end
+  DISABILITY_MODE: begin
+     if (disability_sensor)begin
+         next_state<=DISABILITY_MODE;
+     end 
+    else if (floor_call_buttons != 0) begin
+  next_state <= MOVING_UP;
+end
+end  default: begin
+    next_state <= IDLE;
+   end
+endcase
+end
+
+// Output logic
+assign elevator_motor_control = (current_state == MOVING_UP) ? 1'b1 : (current_state == MOVING_DOWN) ? 1'b0 : 1'bz;
+assign door_open_control = (current_state == DOOR_OPENING) ? 1'b1 : 1'bz;
+assign door_close_control = (current_state == DOOR_CLOSING) ? 1'b1 : 1'bz;
+assign floor_display = elevator_position_sensor;
+assign alarm_signal = (fire_alarm_sensor | power_outage_sensor);
+assign emergency_mode_signal = (current_state == EMERGENCY_MODE);
+endmodule
+
